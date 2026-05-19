@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,13 +10,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Name and email are required" }, { status: 400 });
     }
 
-    // In production: save to DB and send email notification
-    // For now, log and return success
-    console.log("New consultation request:", { name, email, phone, country, degree, consultationType, message, budget });
+    // Upsert client record
+    let client = await prisma.client.findUnique({ where: { email } });
+    if (!client) {
+      client = await prisma.client.create({
+        data: { name, email, phone: phone || null, country: country || null },
+      });
+    }
 
-    // TODO: integrate with Resend/email + Prisma when DB is configured
+    // Create consultation
+    await prisma.consultation.create({
+      data: {
+        clientId: client.id,
+        name,
+        email,
+        phone: phone || null,
+        targetCountry: country || null,
+        degreeLevel: degree || null,
+        consultationType: consultationType || null,
+        message: message || null,
+        budget: budget || null,
+        source: "website",
+      },
+    });
+
     return NextResponse.json({ success: true, message: "Consultation request received" });
-  } catch {
+  } catch (err) {
+    console.error("Consultation save error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

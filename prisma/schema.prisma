@@ -1,0 +1,353 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// ADMIN USERS (staff: super admin, admin, advisor)
+// ─────────────────────────────────────────────
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  password     String
+  role         AdminRole @default(ADVISOR)
+  isActive     Boolean  @default(true)
+  isSuspended  Boolean  @default(false)
+  avatar       String?
+  bio          String?
+  specialties  String[] @default([])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  consultations  Consultation[]
+  appointments   Appointment[]
+  auditLogs      AuditLog[]
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  ADVISOR
+}
+
+// ─────────────────────────────────────────────
+// CLIENTS (students / public users)
+// ─────────────────────────────────────────────
+model Client {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String
+  phone       String?
+  country     String?  // country of residence
+  nationality String?
+  dob         DateTime?
+  isActive    Boolean  @default(true)
+  source      String?  // how they found us
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  consultations  Consultation[]
+  applications   Application[]
+  appointments   Appointment[]
+  documents      Document[]
+}
+
+// ─────────────────────────────────────────────
+// CONSULTATIONS (free booking form submissions)
+// ─────────────────────────────────────────────
+model Consultation {
+  id               String             @id @default(cuid())
+  // Client info (can be pre-registered client or guest)
+  clientId         String?
+  name             String
+  email            String
+  phone            String?
+  // Study preferences
+  targetCountry    String?
+  degreeLevel      String?
+  consultationType String?
+  message          String?
+  budget           String?
+  // Admin management
+  status           ConsultationStatus @default(PENDING)
+  priority         Priority           @default(NORMAL)
+  advisorId        String?
+  adminNotes       String?
+  scheduledAt      DateTime?
+  completedAt      DateTime?
+  followUpAt       DateTime?
+  meetLink         String?
+  source           String?            @default("website")
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  client           Client?            @relation(fields: [clientId], references: [id])
+  advisor          AdminUser?         @relation(fields: [advisorId], references: [id])
+}
+
+enum ConsultationStatus {
+  PENDING
+  CONTACTED
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+// ─────────────────────────────────────────────
+// APPLICATIONS (student university applications)
+// ─────────────────────────────────────────────
+model Application {
+  id               String            @id @default(cuid())
+  clientId         String
+  // University details
+  universityName   String
+  universityCountry String
+  programName      String
+  degreeLevel      String
+  intakeYear       Int?
+  intakeSemester   String?
+  // Application management
+  status           ApplicationStatus @default(SUBMITTED)
+  priority         Priority          @default(NORMAL)
+  adminNotes       String?
+  offerDeadline    DateTime?
+  visaDeadline     DateTime?
+  // Financials
+  tuitionFee       Float?
+  currency         String?           @default("USD")
+  scholarshipAmount Float?
+  // Tracking
+  applicationDate  DateTime          @default(now())
+  offerDate        DateTime?
+  visaDate         DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  client           Client            @relation(fields: [clientId], references: [id])
+  documents        Document[]
+  statusHistory    ApplicationStatusHistory[]
+}
+
+model ApplicationStatusHistory {
+  id            String   @id @default(cuid())
+  applicationId String
+  status        ApplicationStatus
+  note          String?
+  changedBy     String?
+  createdAt     DateTime @default(now())
+
+  application   Application @relation(fields: [applicationId], references: [id])
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  DOCUMENTS_REQUESTED
+  DOCUMENTS_RECEIVED
+  SUBMITTED_TO_UNIVERSITY
+  AWAITING_DECISION
+  CONDITIONAL_OFFER
+  UNCONDITIONAL_OFFER
+  OFFER_ACCEPTED
+  VISA_APPLIED
+  VISA_APPROVED
+  VISA_REFUSED
+  ENROLLED
+  WITHDRAWN
+  REJECTED
+}
+
+// ─────────────────────────────────────────────
+// APPOINTMENTS (scheduled calls & meetings)
+// ─────────────────────────────────────────────
+model Appointment {
+  id           String            @id @default(cuid())
+  clientId     String?
+  advisorId    String?
+  // Appointment details
+  title        String
+  clientName   String
+  clientEmail  String
+  clientPhone  String?
+  type         AppointmentType   @default(CONSULTATION)
+  status       AppointmentStatus @default(PENDING)
+  scheduledAt  DateTime
+  duration     Int               @default(60) // minutes
+  timezone     String?           @default("Africa/Lagos")
+  meetLink     String?
+  notes        String?
+  adminNotes   String?
+  reminderSent Boolean           @default(false)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  client       Client?           @relation(fields: [clientId], references: [id])
+  advisor      AdminUser?        @relation(fields: [advisorId], references: [id])
+}
+
+enum AppointmentType {
+  CONSULTATION
+  FOLLOW_UP
+  DOCUMENT_REVIEW
+  VISA_PREP
+  MOCK_INTERVIEW
+  ORIENTATION
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+  RESCHEDULED
+}
+
+// ─────────────────────────────────────────────
+// DOCUMENTS
+// ─────────────────────────────────────────────
+model Document {
+  id            String       @id @default(cuid())
+  clientId      String?
+  applicationId String?
+  name          String
+  type          DocumentType @default(OTHER)
+  url           String
+  size          Int?
+  mimeType      String?
+  status        DocStatus    @default(UPLOADED)
+  notes         String?
+  uploadedAt    DateTime     @default(now())
+
+  client        Client?      @relation(fields: [clientId], references: [id])
+  application   Application? @relation(fields: [applicationId], references: [id])
+}
+
+enum DocumentType {
+  PASSPORT
+  TRANSCRIPT
+  DEGREE_CERTIFICATE
+  IELTS_TOEFL
+  SOP
+  CV_RESUME
+  REFERENCE_LETTER
+  BANK_STATEMENT
+  BIRTH_CERTIFICATE
+  VISA
+  OFFER_LETTER
+  OTHER
+}
+
+enum DocStatus {
+  UPLOADED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  REPLACE_REQUESTED
+}
+
+// ─────────────────────────────────────────────
+// ARTICLES / BLOG CMS
+// ─────────────────────────────────────────────
+model Article {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  excerpt     String?
+  content     String   @db.Text
+  category    String
+  tags        String[] @default([])
+  coverImage  String?
+  published   Boolean  @default(false)
+  featured    Boolean  @default(false)
+  authorId    String?
+  authorName  String?
+  readTime    String?
+  views       Int      @default(0)
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// TESTIMONIALS
+// ─────────────────────────────────────────────
+model Testimonial {
+  id        String   @id @default(cuid())
+  name      String
+  role      String
+  country   String
+  flag      String?
+  service   String?
+  rating    Int      @default(5)
+  content   String
+  approved  Boolean  @default(false)
+  featured  Boolean  @default(false)
+  avatar    String?
+  createdAt DateTime @default(now())
+}
+
+// ─────────────────────────────────────────────
+// LEADS (newsletter / contact form)
+// ─────────────────────────────────────────────
+model Lead {
+  id        String     @id @default(cuid())
+  name      String?
+  email     String
+  phone     String?
+  source    String     @default("website")
+  status    LeadStatus @default(NEW)
+  notes     String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  CONVERTED
+  LOST
+}
+
+// ─────────────────────────────────────────────
+// SITE SETTINGS (key-value store)
+// ─────────────────────────────────────────────
+model Setting {
+  key       String   @id
+  value     String   @db.Text
+  group     String?
+  label     String?
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// AUDIT LOG
+// ─────────────────────────────────────────────
+model AuditLog {
+  id         String   @id @default(cuid())
+  adminId    String?
+  action     String
+  resource   String
+  resourceId String?
+  details    String?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  admin      AdminUser? @relation(fields: [adminId], references: [id])
+}
