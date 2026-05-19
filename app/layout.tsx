@@ -1,10 +1,18 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Poppins, Open_Sans } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
+const poppins = Poppins({
   subsets: ["latin"],
-  variable: "--font-inter",
+  weight: ["400", "500", "600", "700", "800", "900"],
+  variable: "--font-poppins",
+  display: "swap",
+});
+
+const openSans = Open_Sans({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-open-sans",
   display: "swap",
 });
 
@@ -37,8 +45,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} h-full scroll-smooth`}>
-      <body className="min-h-full flex flex-col font-sans antialiased bg-white text-gray-900">
+    <html lang="en" className={`${poppins.variable} ${openSans.variable} h-full scroll-smooth`}>
+      <body className="min-h-full flex flex-col antialiased bg-white text-gray-900" style={{ fontFamily: "var(--font-open-sans), system-ui, sans-serif" }}>
         {children}
       </body>
     </html>
